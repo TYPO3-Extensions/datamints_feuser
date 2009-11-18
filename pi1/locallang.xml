@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<T3locallang>
+	<meta type="array">
+		<type>module</type>
+		<description>Language labels for plugin &quot;tx_datamintsfeuser_pi1&quot;</description>
+	</meta>
+	<data type="array">
+		<languageKey index="default" type="array">
+			<label index="tx_datamintsfeuser_firstname_error_required">There must be a firstname to be entered!</label>
+			<label index="tx_datamintsfeuser_surname_error_required">There must be a surname to be entered!</label>
+			<label index="username_error_required">There must be a username to be entered!</label>
+			<label index="username_error_unique">This username already exists!</label>
+			<label index="username_error_valid">The username must not contain any spaces!</label>
+			<label index="password_error_equal">It must be entered twice to the same password!</label>
+			<label index="password_error_length">The password must be at least 6 characters long!</label>
+			<label index="password_error_required">It must be given a password!</label>
+			<label index="image_delete">Delete current image!</label>
+			<label index="image_error_size">The image is too large!</label>
+			<label index="image_error_type">The uploaded file is not an image!</label>
+			<label index="image_error_upload">The image could not be uploaded!</label>
+			<label index="email_error_required">There must be a valid e-mail to be entered!</label>
+			<label index="email_error_unique">This email is already in use!</label>
+			<label index="email_error_valid">The entered e-mail is invalid!</label>
+			<label index="name_error_required">There must be a valid name to be entered!</label>
+			<label index="submit_register">Register</label>
+			<label index="submit_edit">Save</label>
+			<label index="edit_success">Your data was successfully changed! They are led in a few seconds back!</label>
+			<label index="register_success">You have successfully registered!</label>
+			<label index="doubleoptin_sent">To activate your account click the activation link in the e-mail we sent you!</label>
+			<label index="doubleoptin_success">Your account has been successfully unlocked!</label>
+			<label index="doubleoptin_failure">Your activation link is unfortunately not valid!</label>
+		</languageKey>
+
+		<languageKey index="de" type="array">
+			<label index="tx_datamintsfeuser_firstname_error_required">Es muss ein Vorname eingegeben werden!</label>
+			<label index="tx_datamintsfeuser_surname_error_required">Es muss ein Nachname eingegeben werden!</label>
+			<label index="username_error_required">Es muss ein Benutzername eingegeben werden!</label>
+			<label index="username_error_unique">Dieser Username ist bereits vorhanden!</label>
+			<label index="username_error_valid">Der Benutzername darf keine Leerzeichen beinhalten!</label>
+			<label index="password_error_equal">Es muss zwei mal das gleiche Passwort eingegeben werden!</label>
+			<label index="password_error_length">Das Passwort muss mindestens 6 Zeichen lang sein!</label>
+			<label index="password_error_required">Es muss ein Passwort angegeben werden!</label>
+			<label index="image_delete">Vorhandenes Bild löschen!</label>
+			<label index="image_error_size">Das Bild ist zu Groß!</label>
+			<label index="image_error_type">Die Hochgeladene Datei ist kein Bild!</label>
+			<label index="image_error_upload">Das Bild konnte nicht hochgeladen werden!</label>
+			<label index="email_error_required">Es muss eine gültige E-Mail eingegeben werden!</label>
+			<label index="email_error_unique">Diese E-Mail wird bereits verwendet!</label>
+			<label index="email_error_valid">Die eingegebene E-Mail ist ungültig!</label>
+			<label index="name_error_required">Es muss ein gültiger Name eingegeben werden!</label>
+			<label index="submit_register">Registrieren</label>
+			<label index="submit_edit">Speichern</label>
+			<label index="edit_success">Ihre Daten wurde erfolgreich geändert! Sie werden in wenigen Sekunden zurück geleitet!</label>
+			<label index="register_success">Sie haben sich erfolgreich registriert!</label>
+			<label index="doubleoptin_sent">Um Ihren Account zu aktivieren, klicken Sie den Aktivierungslink der an die von Ihnen angegebene E-Mail geschickt wurde!</label>
+			<label index="doubleoptin_success">Ihr Account wurde erfolgreich freigeschaltet!</label>
+			<label index="doubleoptin_failure">Ihr Aktivierungslink ist leider nicht gültig!</label>
+		</languageKey>
+	</data>
+</T3locallang>

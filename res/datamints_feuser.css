@@ -1,0 +1,66 @@
+/******************************************/
+/* datamints feuser CSS */
+/******************************************/
+
+div.tx-datamintsfeuser-pi1 {
+	margin-bottom:20px;
+}
+
+/* Form and Fields */
+div.tx-datamintsfeuser-pi1 form {
+	margin:0;
+	padding:0;
+}
+div.tx-datamintsfeuser-pi1 form fieldset {
+	margin-bottom:20px;
+	padding:10px;
+	border:1px solid #ccc;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item {
+	clear:both;
+	margin-top:10px;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item label {
+	display:block;
+	width:160px;
+	float:left;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item input {
+	width:300px;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item input[type="checkbox"] {
+	width:auto;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item textarea {
+	width:300px;
+}
+div.tx-datamintsfeuser-pi1 input#tx_datamintsfeuser_pi1_password_1 {
+	width:144px;
+}
+div.tx-datamintsfeuser-pi1 input#tx_datamintsfeuser_pi1_password_2 {
+	width:144px;
+	margin-left:10px;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item div.group_item {
+	float:left;
+	margin-bottom:10px;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.submit_item {
+	clear:both;
+	margin-top:20px;
+}
+div.tx-datamintsfeuser-pi1 form fieldset div.submit_item input {
+	margin-left:160px;
+}
+
+/* Error - Messages */
+div.tx-datamintsfeuser-pi1 form fieldset div.form_item div.form_error {
+	color:#a20;
+	font-weight:bold;
+	margin-top:5px;
+	padding-left:25px;
+	background-image:url('arrow_red_up.png');
+	background-repeat:no-repeat;
+	background-position:5px 0;
+	clear:left;
+}
