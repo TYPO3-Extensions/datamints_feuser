@@ -42,7 +42,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	var $scriptRelPath = 'pi1/class.tx_datamintsfeuser_pi1.php';	// Path to this script relative to the extension dir.
 	var $extKey        = 'datamints_feuser';	// The extension key.
 	var $pi_checkCHash = true;
-	var $confTypes = Array('showType', 'usedFields', 'requiredFields');		// Konfigurationen, die von Flexformkonfiguration überschrieben werden können.
+	var $confTypes = Array('showtype', 'usedfields', 'requiredfields');		// Konfigurationen, die von Flexformkonfiguration überschrieben werden können.
 	var $conf = Array();
 	var $lang = Array();
 	var $userId = 0;
@@ -92,23 +92,30 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	}
 
 	/**
-	 * Bereitet die die übergeben Daten für den Import in die Datenbank vor, und führt diesen, wenn es keine Fehler gab, aus.
+	 * Bereitet die übergeben Daten für den Import in die Datenbank vor, und führt diesen, wenn es keine Fehler gab, aus.
 	 * @return	String	$content
 	 */
 	function sendForm() {
-		// Überprüfen ob in allen benötigten Feldern etwas drinn steht.
-		$requireCheck = $this->requireCheckForm();
+		// Jedes Element trimmen.
+		foreach ($this->piVars as $key => $value) {
+			$this->piVars[$key] = trim($value);
+		}
+
+		// Überprüfen ob Datenbankeinträge mit den übergebenen Daten übereinstimmen.
+		$uniqueCheck = $this->uniqueCheckForm();
 		// Eine Validierung durchführen über alle Felder die eine gesonderte Konfigurtion bekommen haben.
 		$validCheck = $this->validateForm();
+		// Überprüfen ob in allen benötigten Feldern etwas drinn steht.
+		$requireCheck = $this->requireCheckForm();
 		// Wenn bei der Validierung ein Feld nicht den Anforderungen entspricht noch einmal die Form anzeigen und entsprechende Felder markieren.
-		$valueCheck = array_merge((Array)$requireCheck, (Array)$validCheck);
+		$valueCheck = array_merge((Array)$uniqueCheck, (Array)$validCheck, (Array)$requireCheck);
 		if (in_array(0, $valueCheck)) {
 			$content = $this->showForm($valueCheck);
 			return $content;
 		}
 
 		// Wenn der Bearbeitungsmodus, die Zielseite, und der User stimmen, dann wird in die Datenbank schreiben.
-		if ($this->piVars['submitmode'] == $this->conf['showType'] && intval($this->piVars['pageid']) == $GLOBALS['TSFE']->id && intval($this->piVars['userid']) == $this->userId) {
+		if ($this->piVars['submitmode'] == $this->conf['showtype'] && intval($this->piVars['pageid']) == $GLOBALS['TSFE']->id && intval($this->piVars['userid']) == $this->userId) {
 			// Übergebene Felder auslagern um eventuell später noch einmal darauf zugreifen zu können.
 			$arrUpdate = $this->piVars;
 
@@ -119,7 +126,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			unset($arrUpdate['submit'], $arrUpdate['submitmode'], $arrUpdate['pageid'], $arrUpdate['userid']);
 
 			// Sonderfälle!
-			$usedFields = explode(',', $this->conf['usedFields']);
+			$usedFields = explode(',', str_replace(' ', '', $this->conf['usedfields']));
 			foreach ($usedFields as $fieldName) {
 				// Passwordfelder behandeln.
 				if (strstr($GLOBALS['TCA']['fe_users']['columns'][$fieldName]['config']['eval'], 'password')) {
@@ -152,7 +159,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			}
 
 			// Der User hat seine Daten editiert.
-			if ($this->conf['showType'] == 'edit') {
+			if ($this->conf['showtype'] == 'edit') {
 				// User editieren.
 				$error = $GLOBALS['TYPO3_DB']->exec_UPDATEquery('fe_users', 'uid = ' . $this->userId , $arrUpdate);
 				if ($error == 1) {
@@ -162,7 +169,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			}
 
 			// Ein neuer User hat sich angemeldet.
-			if ($this->conf['showType'] == 'register') {
+			if ($this->conf['showtype'] == 'register') {
 				// Standartkonfigurationen anwenden.
 				$arrUpdate['pid'] = $this->conf['register.']['userfolder'];
 				$arrUpdate['usergroup'] = $this->conf['register.']['usergroup'];
@@ -187,7 +194,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	}
 
 	/**
-	 * Erstellt wenn gefordert ein Password, und verschlüsselt dieses oder das übergebene, wenn es verschlüsselt werden soll.
+	 * Erstellt wenn gefordert ein Password, und verschlüsselt dieses, oder das übergebene, wenn es verschlüsselt werden soll.
 	 * @param	String	$password
 	 */
 	function generatePassword($password) {
@@ -220,12 +227,10 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	 */
 	function requireCheckForm() {
 		// Alle ausgewählten Felder durchgehen.
-		$requiredFields = explode(',', $this->conf['requiredFields']);
+		$requiredFields = explode(',', str_replace(' ', '', $this->conf['requiredfields']));
 		foreach ($requiredFields as $fieldName) {
 			if ($this->piVars[$fieldName] == '') {
-				$valueCheck[$fieldName] = 0;
-			} else {
-				$valueCheck[$fieldName] = 1;
+				$valueCheck[$fieldName] = 'required';
 			}
 		}
 		return $valueCheck;
@@ -241,63 +246,61 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			$fieldName = trim($fieldName, '.');
 			// Wenn der im TypoScript angegebene Feldname existiert und ein Wert übergeben wurde, dann validieren.
 			if ($GLOBALS['TCA']['fe_users']['columns'][$fieldName] && $this->piVars[$fieldName]) {
-				$value = trim($this->piVars[$fieldName]);
+				$value = $this->piVars[$fieldName];
 
 				switch ($validate['type']) {
 
 					case 'password':
-						$value_rep = trim($this->piVars[$fieldName . '_rep']);
+						$value_rep = $this->piVars[$fieldName . '_rep'];
 						$arrLength[0] = 6;
-						if ($validate['length']) {
-							$arrLength = explode(',', $validate['length']);
-							if ($arrLength[1]) {
-								// Wenn eine Maximallänge festgelegt wurde.
-								if ($value == $value_rep && strlen($value) >= $arrLength[0] && strlen($value) <= $arrLength[1]) {
-									$valueCheck[$fieldName] = 1;
+						if ($value == $value_rep) {
+							if ($validate['length']) {
+								$arrLength = explode(',', str_replace(' ', '', $validate['length']));
+								if ($arrLength[1]) {
+									// Wenn eine Maximallänge festgelegt wurde.
+									if (strlen($value) < $arrLength[0] && strlen($value) > $arrLength[1]) {
+										$valueCheck[$fieldName] = 'length';
+									}
 								} else {
-									$valueCheck[$fieldName] = 0;
+									// Wenn nur eine Minimallänge festgelegt wurde.
+									if (strlen($value) < $arrLength[0]) {
+										$valueCheck[$fieldName] = 'length';
+									}
 								}
 							} else {
 								// Wenn nur eine Minimallänge festgelegt wurde.
-								if ($value == $value_rep && strlen($value) >= $arrLength[0]) {
-									$valueCheck[$fieldName] = 1;
-								} else {
-									$valueCheck[$fieldName] = 0;
+								if (strlen($value) < $arrLength[0]) {
+									$valueCheck[$fieldName] = 'length';
 								}
 							}
 						} else {
-							// Wenn nur eine Minimallänge festgelegt wurde.
-							if ($value == $value_rep && strlen($value) >= $arrLength[0]) {
-								$valueCheck[$fieldName] = 1;
-							} else {
-								$valueCheck[$fieldName] = 0;
-							}
+							$valueCheck[$fieldName] = 'equal';
 						}
 						break;
 
 					case 'email':
-						$valueCheck[$fieldName] = preg_match('/^[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,6}$/', $value);
+						if (!preg_match('/^[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,6}$/', $value)) {
+							$valueCheck[$fieldName] = 'valid';
+						}
 						break;
 
 					case 'custom':
 						if ($validate['regexp']) {
-							$valueCheck[$fieldName] = preg_match($validate['regexp'], $value);
+							if (!preg_match($validate['regexp'], $value)) {
+								$valueCheck[$fieldName] = 'valid';
+							}
 						}
 						if ($validate['length']) {
-							$arrLength = explode(',', $validate['length']);
+							$arrLength = explode(',', str_replace(' ', '', $validate['length']));
 							if ($arrLength[1]) {
 								// Wenn eine Maximallänge festgelegt wurde.
-								if (strlen($value) >= $arrLength[0] && strlen($value) <= $arrLength[1]) {
-									$valueCheck[$fieldName] = 1;
-								} else {
-									$valueCheck[$fieldName] = 0;
+								if (strlen($value) < $arrLength[0] && strlen($value) > $arrLength[1]) {
+									$valueCheck[$fieldName] = 'length';
 								}
 							} else {
 								// Wenn nur eine Minimallänge festgelegt wurde.
-								if (strlen($value) >= $arrLength[0]) {
-									$valueCheck[$fieldName] = 1;
-								} else {
-									$valueCheck[$fieldName] = 0;
+								if (strlen($value) < $arrLength[0]) {
+									$valueCheck[$fieldName] = 'length';
 								}
 							}
 						}
@@ -310,12 +313,33 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	}
 
 	/**
+	 * Überprüft die übergeben Inhalte, bei bestimmten Feldern, in der Datenbank schon vorhanden sind.
+	 * @return	Array	$valueCheck
+	 */
+	function uniqueCheckForm() {
+		// Check unique Fields.
+		$uniqueFields = explode(',', str_replace(' ', '', $this->conf['register.']['uniquefields']));
+		// Wenn User eingeloggt, dann den eigenen Datensatz nicht durchsuchen.
+		if ($this->userId) {
+			$where = ' uid <> ' . $this->userId;
+		}
+		foreach ($uniqueFields as $fieldName) {
+			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('COUNT(uid) as count', 'fe_users', 'pid = ' . $this->conf['register.']['userfolder'] . ' AND ' . $fieldName . ' = "' . $this->piVars[$fieldName] . '"' . $where, '', '');
+            $row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
+			if ($row['count'] >= 1) {
+				$valueCheck[$fieldName] = 'unique';
+			}
+		}
+		return $valueCheck;
+	}
+
+	/**
 	 * Gibt alle im Backend definierten Felder (TypoScipt/Flexform) formatiert und der Anzeigeart entsprechend aus.
 	 * @return	String	$content
 	 */
 	function showForm($valueCheck = Array()) {
 		// Beim editieren der Userdaten, die Felder vorausfüllen.
-		if ($this->conf['showType'] == 'edit') {
+		if ($this->conf['showtype'] == 'edit') {
 			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*', 'fe_users', 'uid = ' . $this->userId , '', '');
             $arrCurrentData = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
 		}
@@ -326,7 +350,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		}
 
 		// Ein Array erzeugen, mit allen zu benutztenden Feldern.
-		$arrUsedFields = explode(',', $this->conf['usedFields']);
+		$arrUsedFields = explode(',', str_replace(' ', '', $this->conf['usedfields']));
 
 		// Seite, die den Request entgegennimmt (TypoLink).
 		$requestLink = $this->pi_getPageLink($this->conf['requestPid']);
@@ -450,10 +474,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 
 				}
 				// Form Item Ende.
-				if (array_key_exists($fieldName, $valueCheck) && $valueCheck[$fieldName] === 0) {
-					// Error Label ermitteln.
-					$content .= '<div class="form_error ' . $fieldName . '_error">' . $this->getLabel($fieldName . '_error') . '</div>';
-				} elseif (array_key_exists($fieldName, $valueCheck) && is_string($valueCheck[$fieldName])) {
+				if (array_key_exists($fieldName, $valueCheck) && is_string($valueCheck[$fieldName])) {
 					// Extra Error Label ermitteln.
 					$content .= '<div class="form_error ' . $fieldName . '_error">' . $this->getLabel($fieldName . '_error_' . $valueCheck[$fieldName]) . '</div>';
 				}
@@ -470,9 +491,9 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		$content .= '<input type="hidden" name="' . $this->prefixId . '[submit]" value="send" />';
 		$content .= '<input type="hidden" name="' . $this->prefixId . '[userid]" value="' . $this->userId . '" />';
 		$content .= '<input type="hidden" name="' . $this->prefixId . '[pageid]" value="' . $GLOBALS['TSFE']->id . '" />';
-		$content .= '<input type="hidden" name="' . $this->prefixId . '[submitmode]" value="' . $this->conf['showType'] . '" />';
+		$content .= '<input type="hidden" name="' . $this->prefixId . '[submitmode]" value="' . $this->conf['showtype'] . '" />';
 		// Submitbutton.
-		$content .= '<div class="submit_item"><input type="submit" value="' . $this->pi_getLL('submit_' . $this->conf['showType']) . '"/></div>';
+		$content .= '<div class="submit_item"><input type="submit" value="' . $this->pi_getLL('submit_' . $this->conf['showtype']) . '"/></div>';
 
 		$content .= '</fieldset>';
 		$content .= '</form>';
@@ -484,7 +505,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	/**
 	 * The saveDeleteImage method is used to update or delete an image of an address
 	 * @param	String	$fieldName
-	 * @param	Array	$arrUpdate // Call by reference Array.
+	 * @param	Array	$arrUpdate // Call by reference Array mit allen zu updatenden Daten.
 	 * @return	String	$content
 	 */
 	function saveDeleteImage($fieldName, &$arrUpdate) {
@@ -548,7 +569,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	 * @return	String
 	 */
 	function checkIfRequired($fieldName) {
-		$arrRequiredFields = explode(',', $this->conf['requiredFields']);
+		$arrRequiredFields = explode(',', str_replace(' ', '', $this->conf['requiredfields']));
 		if (in_array($fieldName, $arrRequiredFields)) {
 			return ' *';
 		} else {
@@ -569,8 +590,10 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			return $confLabel;
 		} else {
 			// Standard Sprache.
-			//$defaultLanguage = 'default';
 			$defaultLanguage = $GLOBALS['TSFE']->config['config']['language'];
+			if (!$defaultLanguage) {
+				$defaultLanguage = 'default';
+			}
 			// LanguageString ermitteln.
 			$languageString = $GLOBALS['TCA']['fe_users']['columns'][$fieldName]['label'];
 			// Languagekey ermitteln z.B. ("LLL:EXT:lang/locallang_general.php:LGL.starttime" => "LGL.starttime").
