@@ -75,9 +75,13 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			case 'send':
 				$content = $this->sendForm();
 				break;
-			case 'login':
+			case 'redirect':
 				// Wenn Weiterleitung mit Login, dann wird erst eingeloggt und dann weitergeleitet.
-				header('Location: ' . $this->pi_getPageLink($this->conf['register.']['redirect']));
+				if ($this->conf['register.']['redirect']) {
+					header('Location: ' . $this->pi_getPageLink($this->conf['register.']['redirect']));
+				} else {
+					header('Location: ' . $this->pi_getPageLink($GLOBALS['TSFE']->id));
+				}
 				break;
 			default:
 				$content = $this->showForm();
@@ -120,14 +124,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 				// Passwordfelder behandeln.
 				if (strstr($GLOBALS['TCA']['fe_users']['columns'][$fieldName]['config']['eval'], 'password')) {
 					unset($arrUpdate[$fieldName . '_rep']);
-					// Wenn "saltedpasswords" installiert ist wird deren Konfiguration geholt, und je nach Einstellung das Password verschlüsselt.
-					if (t3lib_extMgm::isLoaded('saltedpasswords')) {
-						$saltedpasswords = tx_saltedpasswords_div::returnExtConf();
-						if ($saltedpasswords['enabled'] == 1) {
-							$tx_saltedpasswords = new $saltedpasswords['saltedPWHashingMethod']();
-							$arrUpdate[$fieldName] = $tx_saltedpasswords->getHashedPassword($arrUpdate[$fieldName]);
-						}
-					}
+					// Password generieren und verschlüsseln je nach Einstellung.
+					$arrUpdate[$fieldName] = $this->generatePassword($arrUpdate[$fieldName]);
 					// Wenn kein Password übergeben wurde auch keins schreiben.
 					if ($arrUpdate[$fieldName] == '') {
 						unset($arrUpdate[$fieldName]);
@@ -174,9 +172,9 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 				if ($error == 1) {
 					$content = 'Alle Daten erfolgreich eingetragen! Sie werden in wenigen Sekunden weitergeleitet!';
 					// Wenn nach der Registrierung weitergeleitet werden soll.
-					if ($this->conf['register.']['redirect'] && $this->conf['register.']['login']) {
-						// Weiterleitung mit Login.
-						header('Location: ' . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '[submit]=login&logintype=login&pid=' . $this->conf['register.']['userfolder'] . '&user=' . $this->piVars['username'] . '&pass=' . $this->piVars['password']);
+					if ($this->conf['register.']['login']) {
+						// Weiterleitung mit Login. Zuerst auf die eigene Seite mit Login Parametern und dann auf das Weiterleitungsziel.
+						header('Location: ' . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '[submit]=redirect&logintype=login&pid=' . $this->conf['register.']['userfolder'] . '&user=' . $this->piVars['username'] . '&pass=' . $this->piVars['password']);
 					} elseif ($this->conf['register.']['redirect']) {
 						// Weiterleitung ohne Login.
 						header('Location: ' . $this->pi_getPageLink($this->conf['register.']['redirect']));
@@ -186,6 +184,34 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		}
 
 		return $content;
+	}
+
+	/**
+	 * Erstellt wenn gefordert ein Password, und verschlüsselt dieses oder das übergebene, wenn es verschlüsselt werden soll.
+	 * @param	String	$password
+	 */
+	function generatePassword($password) {
+		// Erstellt ein Password.
+		if ($this->conf['register.']['generatepassword.']['mode']) {
+			$chars = '234567890abcdefghijkmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+			$i = 1;
+			$password = '';
+			while ($i <= $this->conf['register.']['generatepassword.']['length']) {
+				$password .= $chars{mt_rand(0, strlen($chars))};
+				$i++;
+			}
+			// Unverschlüsseltes Password aufheben.
+			$this->piVars['password'] = $password;
+		}
+		// Wenn "saltedpasswords" installiert ist wird deren Konfiguration geholt, und je nach Einstellung das Password verschlüsselt.
+		if (t3lib_extMgm::isLoaded('saltedpasswords')) {
+			$saltedpasswords = tx_saltedpasswords_div::returnExtConf();
+			if ($saltedpasswords['enabled'] == 1) {
+				$tx_saltedpasswords = new $saltedpasswords['saltedPWHashingMethod']();
+				$password = $tx_saltedpasswords->getHashedPassword($password);
+			}
+		}
+		return $password;
 	}
 
 	/**
@@ -288,9 +314,15 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	 * @return	String	$content
 	 */
 	function showForm($valueCheck = Array()) {
+		// Beim editieren der Userdaten, die Felder vorausfüllen.
 		if ($this->conf['showType'] == 'edit') {
 			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*', 'fe_users', 'uid = ' . $this->userId , '', '');
             $arrCurrentData = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
+		}
+
+		// Wenn das Formular schon einmal abgesendet wurde aber ein Fehler auftrat, dann die bereits vom User übertragenen Userdaten vorausfüllen.
+		if ($this->piVars) {
+			$arrCurrentData = array_merge((Array)$arrCurrentData, (Array)$this->piVars);
 		}
 
 		// Ein Array erzeugen, mit allen zu benutztenden Feldern.
