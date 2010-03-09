@@ -110,6 +110,11 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 				break;
 			case 'doubleoptin':
 				if ($this->makeDoubleOptIn()) {
+					// Userid ermittln un Global definieren!
+					$this->userId = intval($this->piVars['uid']);
+					// Registrierungsemail schicken.
+					$this->sendMail('registration');
+
 					//if ($this->conf['register.']['autologin']) {
 					//	// Weiterleitung mit Login. Zuerst auf die eigene Seite mit Login Parametern und dann auf das Weiterleitungsziel.
 					//	header('Location: ' . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '[submit]=redirect&logintype=login&pid=' . $this->conf['register.']['userfolder'] . '&user=' . $this->piVars['username'] . '&pass=' . $this->piVars['password'] . $this->makeHiddenParams());
@@ -120,9 +125,9 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 						header('Location: ' . $this->pi_getPageLink($this->conf['register.']['redirect']) . '?' . $this->makeHiddenParams());
 						exit;
 					}
-					$content = 'Erfolgreich aktiviert!';
+					$content = $this->pi_getLL('doubleoptin_success');
 				} else {
-					$content = 'Der Aktivierungslink ist nicht gültig!';
+					$content = $this->pi_getLL('doubleoptin_failure');
 				}
 				break;
 			default:
@@ -141,7 +146,9 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	function sendForm() {
 		// Jedes Element trimmen.
 		foreach ($this->piVars as $key => $value) {
-			$this->piVars[$key] = trim($value);
+			if (!is_array($value)) {
+				$this->piVars[$key] = trim($value);
+			}
 		}
 
 		// Überprüfen ob Datenbankeinträge mit den übergebenen Daten übereinstimmen.
@@ -194,6 +201,14 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 					$arrUpdate[$fieldName] = strtotime($this->piVars[$fieldName]);
 					$isChecked = true;
 				}
+				// Multiple Selectboxen.
+				if ($this->feUsersTca['columns'][$fieldName]['config']['type'] == 'select' && $this->feUsersTca['columns'][$fieldName]['config']['size'] > 1) {
+					foreach ($this->piVars[$fieldName] as $key => $val) {
+						$this->piVars[$fieldName][$key] = intval($val);
+					}
+					$arrUpdate[$fieldName] = implode(',', $this->piVars[$fieldName]);
+					$isChecked = true;
+				}
 
 				// Wenn noch nicht gesäubert dann nachholen!
 				if (!$isChecked && $this->piVars[$fieldName]) {
@@ -217,8 +232,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 				// User editieren.
 				$error = $GLOBALS['TYPO3_DB']->exec_UPDATEquery('fe_users', 'uid = ' . $this->userId , $arrUpdate);
 				if ($error == 1) {
-					$content = 'Alle Daten erfolgreich geupdated! Sie werden in wenigen Sekunden weitergeleitet!';
 					$GLOBALS['TSFE']->additionalHeaderData['refresh'] = '<meta http-equiv="refresh" content="2; url=' . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '" />';
+					$content = $this->pi_getLL('edit_success');
 				}
 			}
 
@@ -236,18 +251,23 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 				// User erstellen.
 				$error = $GLOBALS['TYPO3_DB']->exec_INSERTquery('fe_users', $arrUpdate);
 				if ($error == 1) {
-					$content = 'Alle Daten erfolgreich eingetragen!';
+					// Userid ermittln un Global definieren!
+					$this->userId = mysql_insert_id();
+
 					// Wenn nach der Registrierung weitergeleitet werden soll.
 					if ($this->conf['register.']['doubleoptin']) {
-						// Userid ermittln un Global definieren!
-						$this->userId = mysql_insert_id();
 						$hash = md5($this->userId . $arrUpdate['username'] . $arrUpdate['email'] . $arrUpdate['tstamp']);
 						$extraMarkers = Array(
 							'registerlink' => $GLOBALS['TSFE']->baseUrl . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '%5Bsubmit%5D=doubleoptin&' . $this->prefixId . '%5Buid%5D=' . $this->userId . '&' . $this->prefixId . '%5Bhash%5D=' . $hash . $this->makeHiddenParams()
 						);
 						$this->sendMail('doubleoptin', $extraMarkers);
+						$content = $this->pi_getLL('doubleoptin_sent');
 						return $content;
 					}
+
+					// Registrierungsemail schicken.
+					$this->sendMail('registration');
+
 					if ($this->conf['register.']['autologin']) {
 						// Weiterleitung mit Login. Zuerst auf die eigene Seite mit Login Parametern und dann auf das Weiterleitungsziel.
 						header('Location: ' . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '[submit]=redirect&logintype=login&pid=' . $this->conf['register.']['userfolder'] . '&user=' . $this->piVars['username'] . '&pass=' . $this->piVars['password'] . $this->makeHiddenParams());
@@ -258,6 +278,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 						header('Location: ' . $this->pi_getPageLink($this->conf['register.']['redirect']) . '?' . $this->makeHiddenParams());
 						exit;
 					}
+					$content = $this->pi_getLL('register_success');
 				}
 			}
 		}
@@ -290,6 +311,13 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			if ($saltedpasswords['enabled'] == 1) {
 				$tx_saltedpasswords = new $saltedpasswords['saltedPWHashingMethod']();
 				$password = $tx_saltedpasswords->getHashedPassword($password);
+			}
+		}
+		// Wenn "md5passwords" installiert ist wird wenn aktiviert, das Password md5 verschlüsselt.
+		if (t3lib_extMgm::isLoaded('md5passwords')) {
+			$arrConf = unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['md5passwords']);
+			if ($arrConf['activate'] == 1) {
+				$password = md5($password);
 			}
 		}
 		return $password;
@@ -370,21 +398,43 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 
 					case 'custom':
 						if ($validate['regexp']) {
-							if (!preg_match($validate['regexp'], $value)) {
-								$valueCheck[$fieldName] = 'valid';
+							if (is_array($value)) {
+								foreach ($value as $subValue) {
+									if (!preg_match($validate['regexp'], $subValue)) {
+										$valueCheck[$fieldName] = 'valid';
+									}
+								}
+							} else {
+								if (!preg_match($validate['regexp'], $value)) {
+									$valueCheck[$fieldName] = 'valid';
+								}
 							}
 						}
 						if ($validate['length']) {
 							$arrLength = explode(',', str_replace(' ', '', $validate['length']));
-							if ($arrLength[1]) {
-								// Wenn eine Maximallänge festgelegt wurde.
-								if (strlen($value) < $arrLength[0] && strlen($value) > $arrLength[1]) {
-									$valueCheck[$fieldName] = 'length';
+							if (is_array($value)) {
+								if ($arrLength[1]) {
+									// Wenn eine Maximallänge festgelegt wurde.
+									if (count($value) < $arrLength[0] && count($value) > $arrLength[1]) {
+										$valueCheck[$fieldName] = 'length';
+									}
+								} else {
+									// Wenn nur eine Minimallänge festgelegt wurde.
+									if (count($value) < $arrLength[0]) {
+										$valueCheck[$fieldName] = 'length';
+									}
 								}
 							} else {
-								// Wenn nur eine Minimallänge festgelegt wurde.
-								if (strlen($value) < $arrLength[0]) {
-									$valueCheck[$fieldName] = 'length';
+								if ($arrLength[1]) {
+									// Wenn eine Maximallänge festgelegt wurde.
+									if (strlen($value) < $arrLength[0] && strlen($value) > $arrLength[1]) {
+										$valueCheck[$fieldName] = 'length';
+									}
+								} else {
+									// Wenn nur eine Minimallänge festgelegt wurde.
+									if (strlen($value) < $arrLength[0]) {
+										$valueCheck[$fieldName] = 'length';
+									}
 								}
 							}
 						}
@@ -648,7 +698,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 						// Select-Item aus Konfigurtion holen.
 						$countSelectfields = count($this->feUsersTca['columns'][$fieldName]['config']['items']);
 						for ($j = 0; $j < $countSelectfields; $j++) {
-							$selected = ($arrCurrentData[$fieldName] == $j) ? ' selected="selected"' : '';
+							//$selected = ($arrCurrentData[$fieldName] == $j) ? ' selected="selected"' : '';
+							$selected = (strpos($arrCurrentData[$fieldName], $j) !== false || in_array($j, $arrCurrentData[$fieldName])) ? ' selected="selected"' : '';
 							$optionlist .= '<option value="' . $this->feUsersTca['columns'][$fieldName]['config']['items'][$j][1] . '"' . $selected . '>' . $this->getLabel($this->feUsersTca['columns'][$fieldName]['config']['items'][$j][0]) . '</option>';
 						}
 						// Wenn Tabelle angegeben zusätzlich aus DB holen.
@@ -660,7 +711,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 							$whr = (trim(strtolower(substr($whr, 0, 8))) == 'order by') ? '1 ' . $whr : $whr;
 							$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($sel , $tab, $whr, '', '');
 							while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-								$selected = ($arrCurrentData[$fieldName] == $row['uid']) ? ' selected="selected"' : '';
+								//$selected = ($arrCurrentData[$fieldName] == $row['uid']) ? ' selected="selected"' : '';
+								$selected = (strpos($arrCurrentData[$fieldName], $row['uid']) !== false || in_array($row['uid'], $arrCurrentData[$fieldName])) ? ' selected="selected"' : '';
 								$optionlist .= '<option value="' . $row['uid'] . '"' . $selected . '>' . $row[$GLOBALS['TCA'][$tab]['ctrl']['label']] . '</option>';
 							}
 						}
@@ -669,6 +721,10 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 						// Einzeiliges Select (Dropdown).
 						if ($this->feUsersTca['columns'][$fieldName]['config']['size'] == 1) {
 							$content .= '<select id="' . $this->prefixId . '_' . $fieldName . '" name=' . $this->prefixId . '[' . $fieldName . ']">';
+							$content .= $optionlist;
+							$content .= '</select>';
+						} else {
+							$content .= '<select id="' . $this->prefixId . '_' . $fieldName . '" name=' . $this->prefixId . '[' . $fieldName . '][]" size="' . $this->feUsersTca['columns'][$fieldName]['config']['size'] . '" multiple="multiple">';
 							$content .= $optionlist;
 							$content .= '</select>';
 						}
