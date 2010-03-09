@@ -24,28 +24,28 @@
 /**
  * [CLASS/FUNCTION INDEX of SCRIPT]
  *
- *   64: class tx_datamintsfeuser_pi1 extends tslib_pibase
- *   81:     function main($content, $conf)
- *  143:     function sendForm()
- *  276:     function generatePassword($password)
- *  305:     function requireCheckForm()
- *  321:     function validateForm()
- *  406:     function uniqueCheckForm()
- *  430:     function saveDeleteImage($fieldName, &$arrUpdate)
- *  492:     function sendMail($templatePart, $extraMarkers = Array())
- *  547:     function makeDoubleOptIn()
- *  566:     function showForm($valueCheck = Array())
- *  754:     function makeHiddenFields()
- *  770:     function makeHiddenParams()
- *  791:     function checkIfRequired($fieldName)
- *  806:     function getLabel($fieldName)
- *  847:     function getConfiguration()
- *  865:     function getFeUsersTca()
- *  876:     function deletePoint($array)
- *  908:     function array_merge_replace_recursive($array1)
+ *   62: class tx_datamintsfeuser_pi1 extends tslib_pibase
+ *  101:     function main($content, $conf)
+ *  168:     function sendForm()
+ *  325:     function generatePassword($password)
+ *  361:     function requireCheckForm()
+ *  377:     function validateForm()
+ *  490:     function uniqueCheckForm()
+ *  516:     function saveDeleteImage($fieldName, &$arrUpdate)
+ *  577:     function sendMail($templatePart, $extraMarkers = Array())
+ *  637:     function makeDoubleOptIn()
+ *  656:     function showForm($valueCheck = Array())
+ *  867:     function makeHiddenFields()
+ *  883:     function makeHiddenParams()
+ *  904:     function checkIfRequired($fieldName)
+ *  919:     function getLabel($fieldName)
+ *  959:     function getConfiguration()
+ *  979:     function setFlexformConfiguration($key, $value)
+ * 1003:     function getFeUsersTca()
+ * 1017:     function deletePoint($array)
+ * 1049:     function array_merge_replace_recursive($array1)
  *
  * TOTAL FUNCTIONS: 18
- * (This index is automatically created/updated by the extension "extdeveval")
  *
  */
 
@@ -64,7 +64,29 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	var $scriptRelPath = 'pi1/class.tx_datamintsfeuser_pi1.php';	// Path to this script relative to the extension dir.
 	var $extKey        = 'datamints_feuser';	// The extension key.
 	var $pi_checkCHash = true;
-	var $confTypes = Array('showtype', 'usedfields', 'requiredfields', 'register.emailtemplate', 'register.autologin', 'register.redirect', 'register.doubleoptin');		// Konfigurationen, die von Flexformkonfiguration überschrieben werden können.
+	var $feUsersTca = Array();
+	// Konfigurationen, die von Flexformkonfiguration überschrieben werden können.
+	var $confTypes = Array(
+		'showtype',
+		'usedfields',
+		'requiredfields',
+		'uniquefields',
+		'sREG' => Array(
+			'register.emailtemplate',
+			'register.doubleoptin',
+			'register.userfolder',
+			'register.usergroup',
+			'register.generatepassword.mode',
+			'register.generatepassword.length',
+			'register.redirect',
+			'register.autologin',
+			'register.mailtype',
+			'register.sendername',
+			'register.sendermail',
+			'register.adminname',
+			'register.adminmail'
+			)
+		);
 	var $conf = Array();
 	var $lang = Array();
 	var $userId = 0;
@@ -82,8 +104,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		$this->pi_loadLL();
 
 		// Debug.
-		$GLOBALS['TSFE']->set_no_cache();
-		$GLOBALS['TYPO3_DB']->debugOutput = true;
+		//$GLOBALS['TSFE']->set_no_cache();
+		//$GLOBALS['TYPO3_DB']->debugOutput = true;
 
 		// Flexform und Configurationen laden.
 		$this->pi_initPIflexForm();
@@ -159,12 +181,12 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		$requireCheck = $this->requireCheckForm();
 		// Wenn bei der Validierung ein Feld nicht den Anforderungen entspricht noch einmal die Form anzeigen und entsprechende Felder markieren.
 		$valueCheck = array_merge((Array)$uniqueCheck, (Array)$validCheck, (Array)$requireCheck);
-		if (in_array(0, $valueCheck)) {
+		if (count($valueCheck) > 0) {
 			$content = $this->showForm($valueCheck);
 			return $content;
 		}
 
-		// Wenn der Bearbeitungsmodus, die Zielseite, und der User stimmen, dann wird in die Datenbank schreiben.
+		// Wenn der Bearbeitungsmodus, die Zielseite, und der User stimmen, dann wird in die Datenbank geschrieben.
 		if ($this->piVars['submitmode'] == $this->conf['showtype'] && intval($this->piVars['pageid']) == $GLOBALS['TSFE']->id && intval($this->piVars['userid']) == $this->userId) {
 			// Sonderfälle!
 			$usedFields = explode(',', str_replace(' ', '', $this->conf['usedfields']));
@@ -244,9 +266,16 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 					$arrUpdate['disable'] = '1';
 				}
 				// Standartkonfigurationen anwenden.
-				$arrUpdate['pid'] = $this->conf['register.']['userfolder'];
+				$arrUpdate['pid'] = ($this->conf['register.']['userfolder']) ? $this->conf['register.']['userfolder'] : '0';
 				$arrUpdate['usergroup'] = ($arrUpdate['usergroup']) ? $arrUpdate['usergroup'] : $this->conf['register.']['usergroup'];
 				$arrUpdate['crdate'] = $arrUpdate['tstamp'];
+
+				// Extra Erstellungsdatumsfelder hinzufügen.
+				foreach (explode(',', str_replace(' ', '', $this->conf['register.']['crdatefields'])) as $val) {
+					if (trim($val)) {
+						$arrUpdate[trim($val)] = $arrUpdate['crdate'];
+					}
+				}
 
 				// User erstellen.
 				$error = $GLOBALS['TYPO3_DB']->exec_INSERTquery('fe_users', $arrUpdate);
@@ -257,8 +286,9 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 					// Wenn nach der Registrierung weitergeleitet werden soll.
 					if ($this->conf['register.']['doubleoptin']) {
 						$hash = md5($this->userId . $arrUpdate['username'] . $arrUpdate['email'] . $arrUpdate['tstamp']);
+						$pageLink = (strpos($this->pi_getPageLink($GLOBALS['TSFE']->id), '?') !== false) ? $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' : $this->pi_getPageLink($GLOBALS['TSFE']->id) . '&';
 						$extraMarkers = Array(
-							'registerlink' => $GLOBALS['TSFE']->baseUrl . $this->pi_getPageLink($GLOBALS['TSFE']->id) . '?' . $this->prefixId . '%5Bsubmit%5D=doubleoptin&' . $this->prefixId . '%5Buid%5D=' . $this->userId . '&' . $this->prefixId . '%5Bhash%5D=' . $hash . $this->makeHiddenParams()
+							'registerlink' => $GLOBALS['TSFE']->baseUrl . $pageLink . $this->prefixId . '%5Bsubmit%5D=doubleoptin&' . $this->prefixId . '%5Buid%5D=' . $this->userId . '&' . $this->prefixId . '%5Bhash%5D=' . $hash . $this->makeHiddenParams()
 						);
 						$this->sendMail('doubleoptin', $extraMarkers);
 						$content = $this->pi_getLL('doubleoptin_sent');
@@ -397,7 +427,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 						break;
 
 					case 'username':
-						if (!preg_match('/^[^ ]*$/')) {
+						if (!preg_match('/^[^ ]*$/', $value)) {
 							$valueCheck[$fieldName] = 'valid';
 						}
 						break;
@@ -453,7 +483,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	}
 
 	/**
-	 * Überprüft die übergeben Inhalte, bei bestimmten Feldern, in der Datenbank schon vorhanden sind.
+	 * Überprüft die übergebenen Inhalte, bei bestimmten Feldern, ob diese in der Datenbank schon vorhanden sind.
 	 *
 	 * @return	Array		$valueCheck
 	 */
@@ -465,10 +495,12 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			$where = ' uid <> ' . $this->userId;
 		}
 		foreach ($uniqueFields as $fieldName) {
-			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('COUNT(uid) as count', 'fe_users', 'pid = ' . $this->conf['register.']['userfolder'] . ' AND ' . $fieldName . ' = "' . mysql_real_escape_string(strip_tags($this->piVars[$fieldName])) . '"' . $where, '', '');
-            $row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
-			if ($row['count'] >= 1) {
-				$valueCheck[$fieldName] = 'unique';
+			if (trim(mysql_real_escape_string(strip_tags($this->piVars[$fieldName])))) {
+				$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('COUNT(uid) as count', 'fe_users', 'pid = ' . $this->conf['register.']['userfolder'] . ' AND ' . $fieldName . ' = "' . trim(mysql_real_escape_string(strip_tags($this->piVars[$fieldName]))) . '"' . $where . ' AND deleted = 0', '', '');
+				$row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res);
+				if ($row['count'] >= 1) {
+					$valueCheck[$fieldName] = 'unique';
+				}
 			}
 		}
 		return $valueCheck;
@@ -577,7 +609,22 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		// Verschicke User-Mail.
 		mail($dataArray['name'] . ' <' . $dataArray['email'] . '>', $subject, $template, $header);
 		// Verschicke Admin-Mail.
-		if ($this->conf['register.']['adminmail']) {
+		if ($this->conf['register.']['adminname'] && $this->conf['register.']['adminmail'] && $templatePart != 'doubleoptin') {
+			// Template laden.
+			$template = $this->cObj->fileResource($templateFile);
+			$template = $this->cObj->getSubpart($template, '###ADMINNOTIFICATION###');
+			$template = $this->cObj->substituteMarkerArray($template, $markerArray, '###|###', 1);
+			// Betreff ermitteln und aus dem E-Mail Content entfernen.
+			$subject = trim($this->cObj->getSubpart($template, '###SUBJECT###'));
+			$template = $this->cObj->substituteSubpart($template, '###SUBJECT###', '');
+
+			// Restlichen Content wieder zusammenfügen.
+			if ($this->conf['register.']['mailtype'] == 'html') {
+				$mailtype = 'text/html';
+			} else {
+				$mailtype = 'text/plain';
+				$template = trim(strip_tags($template));
+			}
 			mail($this->conf['register.']['adminname'] . ' <' . $this->conf['register.']['adminmail'] . '>', $subject, $template, $header);
 		}
 	}
@@ -622,8 +669,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		$arrUsedFields = explode(',', str_replace(' ', '', $this->conf['usedfields']));
 
 		// Seite, die den Request entgegennimmt (TypoLink).
-		$requestLink = $this->pi_getPageLink($this->conf['requestPid']);
-		if (!$this->conf['requestPid']) {
+		$requestLink = $this->pi_getPageLink($this->conf['requestpid']);
+		if (!$this->conf['requestpid']) {
 			// Wenn keine Seite per TypoScript angegeben ist, wird die aktuelle Seite verwendet.
 			$requestLink = $this->pi_getPageLink($GLOBALS['TSFE']->id);
 		}
@@ -631,9 +678,15 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 		// Formular start.
 		$content = '<form name="' . $this->prefixId . '" action="' . $requestLink . '" method="post" enctype="multipart/form-data"><fieldset class="form_part_1">';
 
+		// Wenn eine Lgende für das erste Fieldset definiert wurde, diese ausgeben.
+		if ($this->conf['separatorheads.'][1]) {
+			$content .= '<legend class="legends legend_1">' . $this->conf['separatorheads.'][1] . '</legend>';
+		}
+
 		// ID zähler für Items und Fieldsets.
 		$iItem = 1;
 		$iFieldset = 1;
+		$iInfoItem = 1;
 
 		// Alle ausgewählten Felder durchgehen.
 		foreach ($arrUsedFields as $fieldName) {
@@ -664,13 +717,15 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 							$content .= '<input type="password" id="' . $this->prefixId . '_' . $fieldName . '_2" name="' . $this->prefixId . '[' . $fieldName . '_rep]" value="" />';
 							break;
 						}
+						$readOnly = ($this->feUsersTca['columns'][$fieldName]['config']['readOnly'] == 1) ? ' readonly="readonly"' : '';
 						// Normales Inputfeld.
-						$content .= '<input type="text" id="' . $this->prefixId . '_' . $fieldName . '" name="' . $this->prefixId . '[' . $fieldName . ']" value="' . $arrCurrentData[$fieldName] . '" />';
+						$content .= '<input type="text" id="' . $this->prefixId . '_' . $fieldName . '" name="' . $this->prefixId . '[' . $fieldName . ']" value="' . $arrCurrentData[$fieldName] . '"' . $readOnly . ' />';
 						break;
 
 					case 'text':
+						$readOnly = ($this->feUsersTca['columns'][$fieldName]['config']['readOnly'] == 1) ? ' readonly="readonly"' : '';
 						// Textarea.
-						$content .= '<textarea id="' . $this->prefixId . '_' . $fieldName . '" name="' . $this->prefixId . '[' . $fieldName . ']">' . $arrCurrentData[$fieldName] . '</textarea>';
+						$content .= '<textarea id="' . $this->prefixId . '_' . $fieldName . '" name="' . $this->prefixId . '[' . $fieldName . ']"' . $readOnly . '>' . $arrCurrentData[$fieldName] . '</textarea>';
 						break;
 
 					case 'check':
@@ -775,6 +830,15 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			} elseif ($fieldName == '--separator--') {
 				$iFieldset++;
 				$content .= '</fieldset><fieldset class="fieldset_' . $iFieldset . '">';
+				// Wenn eine Lgende für das Fieldset definiert wurde, diese ausgeben.
+				if ($this->conf['separatorheads.'][$iFieldset]) {
+					$content .= '<legend class="legends legend_' . $iFieldset . '">' . $this->conf['separatorheads.'][$iFieldset] . '</legend>';
+				}
+			} elseif ($fieldName == '--infoitem--') {
+				if ($this->conf['infoitems.'][$iInfoItem]) {
+					$content .= '<div class="infoitems infoitem_' . $iInfoItem . '">' . $this->conf['infoitems.'][$iInfoItem] . '</div>';
+				}
+				$iInfoItem++;
 			}
 
 		}
@@ -888,19 +952,46 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	}
 
 	/**
-	 * Überschreibt eventuell vorhandene TypoScript Konfigurationen mit den Konfigurationen aus der Flexform.
+	 * Holt Konfigurationen aus der Flexform (Tab-bedingt) und ersetzt diese pro Konfiguration in der TypoScript Konfiguration.
 	 *
 	 * @global	$this->conf
 	 */
 	function getConfiguration() {
-		foreach ($this->confTypes as $key) {
-			$value = $this->pi_getFFvalue($this->cObj->data['pi_flexform'], $key, 'sDEF');
-			if (strpos($key, '.') !== false && $value) {
-				$arrKey = explode('.', $key);
-				$this->conf[$arrKey[0] . '.'][$arrKey[1]] = $value;
-			} elseif ($value) {
-				$this->conf[$key] = $value;
+		foreach ($this->confTypes as $tabKey => $key) {
+			if (is_array($key)) {
+				foreach ($key as $newKey) {
+					$value = $this->pi_getFFvalue($this->cObj->data['pi_flexform'], $newKey, $tabKey);
+					$this->setFlexformConfiguration($newKey, $value);
+				}
+			} else {
+				$value = $this->pi_getFFvalue($this->cObj->data['pi_flexform'], $key, 'sDEF');
+				$this->setFlexformConfiguration($key, $value);
 			}
+		}
+	}
+
+	/**
+	 * Überschreibt eventuell vorhandene TypoScript Konfigurationen mit den Konfigurationen aus der Flexform.
+	 *
+	 * @param	String		$key
+	 * @param	String		$value
+	 */
+	function setFlexformConfiguration($key, $value) {
+		if (strpos($key, '.') !== false && $value) {
+			$arrKey = explode('.', $key);
+			for ($i = count($arrKey) - 1; $i >= 0; $i--) {
+				if ($i == count($arrKey) - 1) {
+					$newValue[$arrKey[$i]] = $value;
+				} else {
+					$newValue[$arrKey[$i] . '.'] = $value;
+				}
+				$value = $newValue;
+				// Muss
+				unset($newValue);
+			}
+			$this->conf = $this->array_merge_replace_recursive($this->conf, $value);
+		} elseif ($value) {
+			$this->conf[$key] = $value;
 		}
 	}
 
@@ -910,8 +1001,11 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	 * @global	$this->feUsersTca
 	 */
 	function getFeUsersTca() {
+		$GLOBALS['TSFE']->includeTCA();
 		$this->feUsersTca = $GLOBALS['TCA']['fe_users'];
-		$this->feUsersTca['columns'] = $this->array_merge_replace_recursive((Array)$this->feUsersTca['columns'], (Array)$this->deletePoint($this->conf['fieldconfig.']));
+		if ($this->conf['fieldconfig.']) {
+			$this->feUsersTca['columns'] = $this->array_merge_replace_recursive((Array)$this->feUsersTca['columns'], (Array)$this->deletePoint($this->conf['fieldconfig.']));
+		}
 	}
 
 	/**
