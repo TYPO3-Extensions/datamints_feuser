@@ -330,6 +330,8 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 	 * @return	string		$password
 	 */
 	function generatePassword($fieldName) {
+		// Uebergebenes Password setzten.
+		$password = $this->piVars[$fieldName];
 		// Erstellt ein Password.
 		if ($this->conf['register.']['generatepassword.']['mode']) {
 			$chars = '234567890abcdefghijkmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
