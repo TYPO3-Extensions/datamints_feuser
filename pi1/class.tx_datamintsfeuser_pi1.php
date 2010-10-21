@@ -1698,7 +1698,7 @@ class tx_datamintsfeuser_pi1 extends tslib_pibase {
 			$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery($sel , $tab, $whr);
 
 			while ($row = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)) {
-				$selected = (strpos($arrCurrentData[$fieldName], $row['uid']) !== false || in_array($row['uid'], $arrCurrentData[$fieldName])) ? ' selected="selected"' : '';
+				$selected = (strpos($arrCurrentData[$fieldName], $row['uid']) !== false || in_array($row['uid'], (array)$arrCurrentData[$fieldName])) ? ' selected="selected"' : '';
 				$optionlist .= '<option value="' . $row['uid'] . '"' . $selected . '>' . $row[$GLOBALS['TCA'][$tab]['ctrl']['label']] . '</option>';
 			}
 		}
