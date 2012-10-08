@@ -28,25 +28,26 @@
  * [CLASS/FUNCTION INDEX of SCRIPT]
  *
  *
- *   60: class tx_datamintsfeuser_utils
- *   69:     function getFeUsersTca($feUsersTca)
- *   86:     function getStoragePid($storagePid)
- *  102:     function getTypoLinkUrl($params, $urlParameters = array())
- *  117:     function htmlspecialchars($arrData, $mode)
- *  146:     function generatePassword($password, $arrGenerate = array())
- *  209:     function checkPassword($submitedPassword, $originalPassword)
- *  266:     function userAutoLogin($username, $pageId = 0, $urlParameters = array())
- *  285:     function userRedirect($pageId = 0, $urlParameters = array(), $disableAccessCheck = false)
- *  310:     function escapeBrackets($url)
- *  322:     function cleanHeaderUrlData($data)
- *  334:     function cleanSpecialFieldKey($fieldName)
- *  349:     function getTemplateSubpart($templateFile, $templatePart, $markerArray = array())
- *  372:     function readFlexformTab($flexData, $sTab, &$conf)
- *  406:     function setFlexformConfiguration($key, $value, $conf)
- *  436:     function checkUtf8($str)
+ *   61: class tx_datamintsfeuser_utils
+ *   70:     function getFeUsersTca($feUsersTca)
+ *   87:     function getStoragePid($storagePid)
+ *  103:     function getTypoLinkUrl($params, $urlParameters = array())
+ *  117:     function fixPath($path)
+ *  129:     function htmlspecialcharsPostArray($arrData, $decode)
+ *  158:     function generatePassword($password, $arrGenerate = array())
+ *  221:     function checkPassword($submitedPassword, $originalPassword)
+ *  278:     function userAutoLogin($userId, $pageId = 0, $urlParameters = array())
+ *  298:     function userRedirect($pageId = 0, $urlParameters = array(), $disableAccessCheck = false)
+ *  323:     function escapeBrackets($url)
+ *  335:     function getSpecialFieldKey($fieldName)
+ *  348:     function convertHtmlEmailToPlain($content)
+ *  389:     function getTemplateSubpart($templateFile, $templatePart, $markerArray = array())
+ *  412:     function getFlexformConfigurationFromTab($flexData, $sTab, $conf = array())
+ *  448:     function setFlexformConfigurationValue($key, $value, $conf)
+ *  478:     function checkUtf8($str)
  *
  *
- * TOTAL FUNCTIONS: 14
+ * TOTAL FUNCTIONS: 16
  *
  */
 
@@ -89,7 +90,7 @@ class tx_datamintsfeuser_utils {
 			$storagePid = $arrayRootPids['_STORAGE_PID'];
 		}
 
-		return $storagePid;
+		return intval($storagePid);
 	}
 
 	/**
@@ -107,15 +108,31 @@ class tx_datamintsfeuser_utils {
 	}
 
 	/**
-	 * Konvertiert alle Inhalte des uebernenen Arrays um z.B. XSS zu verhindern.
+	 * Wird verwendet, um doppelte Schraegstriche zu vermeiden.
+	 * Der Pfad wird mit einem abschliessenden Schraegstrich zurueckgegeben.
+	 *
+	 * @param	string		$path
+	 * @return	string		$path
+	 */
+	function fixPath($path) {
+		return dirname($path . DIRECTORY_SEPARATOR . '.') . DIRECTORY_SEPARATOR;
+	}
+
+	/**
+	 * Konvertiert alle Inhalte des uebergebenen Arrays um z.B. XSS zu verhindern.
 	 * Der Modus gibt an ob das Array encodiert oder decodiert werden soll.
 	 *
 	 * @param	array		$arrUpdate
-	 * @param	boolean		$mode
+	 * @param	boolean		$decode
 	 * @return	array		$arrUpdate
 	 */
-	function htmlspecialchars($arrData, $mode) {
-		if ($mode) {
+	function htmlspecialcharsPostArray($arrData, $decode) {
+		if ($decode) {
+			// Konvertiert alle moeglichen Zeichen die fuer die Ausgabe angepasst wurden zurueck.
+			foreach ($arrData as $key => $val) {
+				$arrData[$key] = htmlspecialchars_decode($val);
+			}
+		} else {
 			// Konvertiert alle moeglichen Zeichen der Ausgabe, die stoeren koennten (XSS).
 			foreach ($arrData as $key => $val) {
 				if (is_array($arrData[$key])) {
@@ -125,11 +142,6 @@ class tx_datamintsfeuser_utils {
 				} else {
 					$arrData[$key] = htmlspecialchars($val);
 				}
-			}
-		} else {
-			// Konvertiert alle moeglichen Zeichen die fuer die Ausgabe angepasst wurden zurueck.
-			foreach ($arrData as $key => $val) {
-				$arrData[$key] = htmlspecialchars_decode($val);
 			}
 		}
 
@@ -258,16 +270,17 @@ class tx_datamintsfeuser_utils {
 	/**
 	 * Vollzieht einen Login ohne ein Passwort.
 	 *
-	 * @param	string		$username
+	 * @param	integer		$userId
 	 * @param	integer		$pageId
 	 * @param	array		$urlParameters
 	 * @return	void
 	 */
-	function userAutoLogin($username, $pageId = 0, $urlParameters = array()) {
+	function userAutoLogin($userId, $pageId = 0, $urlParameters = array()) {
 		// Login vollziehen.
 		$GLOBALS['TSFE']->fe_user->checkPid = 0;
-		$arrAuthInfo = $GLOBALS['TSFE']->fe_user->getAuthInfoArray();
-		$userRecord = $GLOBALS['TSFE']->fe_user->fetchUserRecord($arrAuthInfo['db_user'], $username);
+
+		$userRecord = $GLOBALS['TSFE']->fe_user->getRawUserByUid($userId);
+
 		$GLOBALS['TSFE']->fe_user->createUserSession($userRecord);
 
 		// Umleiten, damit der Login wirksam wird.
@@ -297,7 +310,7 @@ class tx_datamintsfeuser_utils {
 
 		$pageLink = self::getTypoLinkUrl($pageId, $urlParameters);
 
-		header('Location: ' . t3lib_div::getIndpEnv('TYPO3_SITE_URL') . $pageLink);
+		header('Location: ' . t3lib_div::locationHeaderUrl($pageLink));
 		exit;
 	}
 
@@ -319,11 +332,50 @@ class tx_datamintsfeuser_utils {
 	 * @param	string		$fieldName
 	 * @return	string
 	 */
-	function cleanSpecialFieldKey($fieldName) {
+	function getSpecialFieldKey($fieldName) {
 		if (preg_match('/^--.*--$/', $fieldName)) {
 			return preg_replace('/^--(.*)--$/', '\1', $fieldName);
 		}
 		return $fieldName;
+	}
+
+	/**
+	 * Convertiert eine HTML E-Mail zu einer Plain Text E-Mail.
+	 *
+	 * @param	string		$content
+	 * @return	string		$content
+	 */
+	function convertHtmlEmailToPlain($content) {
+		$newLine = chr(13) . chr(10);
+
+		// Den Head entfernen.
+		$content = preg_replace('/<head>.*?<\/head>/s', '', $content, 1);
+
+		// Links auflösen (A-Tag entfernen und Href extrahieren).
+		$content = preg_replace('/<a[^>]*href="([^"]*)"[^>]*>[^<]*<\/a>/i', ' $1 ', $content);
+
+		// Nach jedem schliessenden Tag eine Leerzeile einfuegen.
+		$content = preg_replace('/>/i', '>' . $newLine, $content);
+
+		// HTML Sonderzeichen in Textzeichen umwandeln.
+		$content = html_entity_decode($content);
+
+		// Alle HTML Tags entfernen und allgemein trimmen.
+		$content = trim(strip_tags($content));
+
+		// Jede Zeile trimmen.
+		$arrContent = preg_split('/\r?\n/', $content);
+
+		foreach ($arrContent as $key => $val) {
+			$arrContent[$key] = trim($val);
+		}
+
+		$content = implode($newLine, $arrContent);
+
+		// Wenn mehr als 2 Zeilenumbrueche hintereinander kommen, 2 daraus machen.
+		$content = preg_replace('/(' . $newLine . '){2,}/', $newLine . $newLine, $content);
+
+		return $content;
 	}
 
 	/**
@@ -354,10 +406,10 @@ class tx_datamintsfeuser_utils {
 	 *
 	 * @param	array		$flexData
 	 * @param	string		$sType
-	 * @param	array		$conf // Call by reference Array mit allen zu updatenden Daten.
-	 * @return	void
+	 * @param	array		$conf
+	 * @return	array		$conf
 	 */
-	function readFlexformTab($flexData, $sTab, &$conf) {
+	function getFlexformConfigurationFromTab($flexData, $sTab, $conf = array()) {
 		 if (is_array($flexData)) {
 			 if (isset($flexData['data'][$sTab]['lDEF'])) {
 				 $flexData = $flexData['data'][$sTab]['lDEF'];
@@ -369,11 +421,11 @@ class tx_datamintsfeuser_utils {
 						 if (isset($element['vDEF'])) {
 							 $conf[$ekey] = $element['vDEF'];
 						 } else {
-							 self::readFlexformTab($element, $sTab, $conf[$key][$ekey]);
+							 $conf[$key][$ekey] = self::getFlexformConfigurationFromTab($element, $sTab, $conf[$key][$ekey]);
 						 }
 					 }
 				 } else {
-					 self::readFlexformTab($value['el'], $sTab, $conf);
+					 $conf = self::getFlexformConfigurationFromTab($value['el'], $sTab, $conf);
 				 }
 
 				 if ($value['vDEF']) {
@@ -381,6 +433,8 @@ class tx_datamintsfeuser_utils {
 				 }
 			 }
 		 }
+
+		 return $conf;
 	 }
 
 	/**
@@ -391,9 +445,9 @@ class tx_datamintsfeuser_utils {
 	 * @param	array		$conf
 	 * @return	array		$conf
 	 */
-	function setFlexformConfiguration($key, $value, $conf) {
+	function setFlexformConfigurationValue($key, $value, $conf) {
 		if (strpos($key, '.') !== false && $value) {
-			$arrKey = t3lib_div::trimExplode('.', $key);
+			$arrKey = t3lib_div::trimExplode('.', $key, true);
 
 			for ($i = count($arrKey) - 1; $i >= 0; $i--) {
 				$newValue = array();
@@ -460,6 +514,10 @@ class tx_datamintsfeuser_utils {
 	}
 
 
+}
+
+if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/datamints_feuser/lib/class.tx_datamintsfeuser_utils.php'])	{
+	include_once($TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/datamints_feuser/lib/class.tx_datamintsfeuser_utils.php']);
 }
 
 ?>
